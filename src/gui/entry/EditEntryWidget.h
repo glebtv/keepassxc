@@ -41,6 +41,7 @@ class EntryAttributes;
 class EntryAttachments;
 class EntryAttributesModel;
 class EntryHistoryModel;
+class NotesSearchWidget;
 class QButtonGroup;
 class QMenu;
 class QScrollArea;
@@ -128,6 +129,10 @@ private slots:
     void toggleHideNotes(bool visible);
     void pickColor();
     void updateNotesSearchHighlight();
+    void updateFieldHighlights();
+    void findNotesNext();
+    void findNotesPrevious();
+    void updateNotesFindHighlight();
 #ifdef KPXC_FEATURE_SSHAGENT
     void toKeeAgentSettings(KeeAgentSettings& settings) const;
     void setSSHAgentSettings();
@@ -227,6 +232,7 @@ private:
     QStringListModel* const m_usernameCompleterModel;
     QTimer m_entryModifiedTimer;
     QList<QRegularExpression> m_notesSearchTerms;
+    NotesSearchWidget* m_notesSearchWidget;
 
     Q_DISABLE_COPY(EditEntryWidget)
 };

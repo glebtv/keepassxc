@@ -67,10 +67,10 @@ public:
     void setCaseSensitive(bool state);
     bool isCaseSensitive() const;
     QList<SearchTerm> searchTerms() const;
+    void parseSearchTerms(const QString& searchString);
 
 private:
     bool searchEntryImpl(const Entry* entry);
-    void parseSearchTerms(const QString& searchString);
 
     bool m_caseSensitive;
     bool m_skipProtected;

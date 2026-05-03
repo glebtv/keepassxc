@@ -71,6 +71,8 @@ private slots:
     void testTrayRestoreHide();
     void testShortcutConfig();
     void testMenuActionStates();
+    void testNotesSearchHighlight();
+    void testNotesFindBar();
 
 private:
     void addCannedEntries();

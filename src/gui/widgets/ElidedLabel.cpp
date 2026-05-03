@@ -86,16 +86,28 @@ void ElidedLabel::setUrl(const QString& url)
     emit urlChanged(m_url);
 }
 
+void ElidedLabel::setSearchHtml(const QString& html)
+{
+    m_searchHtml = html;
+    updateElidedText();
+}
+
 void ElidedLabel::clear()
 {
     setRawText(QString());
     setElideMode(Qt::ElideMiddle);
     setUrl(QString());
+    m_searchHtml.clear();
     QLabel::clear();
 }
 
 void ElidedLabel::updateElidedText()
 {
+    if (!m_searchHtml.isEmpty()) {
+        setText(m_searchHtml);
+        return;
+    }
+
     if (m_rawText.isEmpty()) {
         QLabel::clear();
         return;

@@ -40,6 +40,7 @@ public slots:
     void setElideMode(Qt::TextElideMode elideMode);
     void setRawText(const QString& rawText);
     void setUrl(const QString& url);
+    void setSearchHtml(const QString& html);
     void clear();
 
 signals:
@@ -56,6 +57,7 @@ private:
     Qt::TextElideMode m_elideMode;
     QString m_rawText;
     QString m_url;
+    QString m_searchHtml;
 };
 
 #endif // KEEPASSX_ELIDEDLABEL_H

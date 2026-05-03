@@ -125,7 +125,157 @@ void EntryPreviewWidget::clear()
     hide();
     m_currentEntry = nullptr;
     m_currentGroup = nullptr;
+    m_searchTerms.clear();
+    m_ui->entryNotesTextEdit->setExtraSelections({});
+    m_ui->groupNotesTextEdit->setExtraSelections({});
+    m_ui->entryTitleLabel->setSearchHtml({});
+    m_ui->entryUrlLabel->setSearchHtml({});
+    m_ui->entryUsernameLabel->setStyleSheet("");
     m_ui->entryAttachmentsWidget->unlinkAttachments();
+}
+
+void EntryPreviewWidget::setSearchTerms(const QList<QRegularExpression>& terms)
+{
+    m_searchTerms = terms;
+    updateNotesSearchHighlight();
+    updateFieldHighlights();
+}
+
+void EntryPreviewWidget::updateNotesSearchHighlight()
+{
+    auto highlight = [&](QTextEdit* textEdit) {
+        QList<QTextEdit::ExtraSelection> extraSelections;
+
+        if (m_searchTerms.isEmpty() || textEdit->toPlainText().isEmpty()) {
+            textEdit->setExtraSelections(extraSelections);
+            return;
+        }
+
+        auto highlightColor = QColor(255, 235, 59);
+        highlightColor.setAlpha(128);
+
+        for (const auto& regex : m_searchTerms) {
+            if (regex.pattern().isEmpty()) {
+                continue;
+            }
+
+            QTextCursor cursor(textEdit->document());
+            while (!cursor.isNull() && !cursor.atEnd()) {
+                cursor = textEdit->document()->find(regex, cursor);
+                if (!cursor.isNull()) {
+                    QTextEdit::ExtraSelection selection;
+                    selection.cursor = cursor;
+                    selection.format.setBackground(highlightColor);
+                    extraSelections.append(selection);
+                }
+            }
+        }
+
+        textEdit->setExtraSelections(extraSelections);
+    };
+
+    highlight(m_ui->entryNotesTextEdit);
+    highlight(m_ui->groupNotesTextEdit);
+}
+
+QString EntryPreviewWidget::highlightMatches(const QString& text, const QList<QRegularExpression>& terms)
+{
+    if (terms.isEmpty() || text.isEmpty()) {
+        return text.toHtmlEscaped();
+    }
+
+    // Find all match regions in the original text
+    QList<QPair<int, int>> matches;
+    for (const auto& regex : terms) {
+        if (regex.pattern().isEmpty()) {
+            continue;
+        }
+        auto it = regex.globalMatch(text);
+        while (it.hasNext()) {
+            auto match = it.next();
+            matches.append({match.capturedStart(), match.capturedEnd()});
+        }
+    }
+
+    if (matches.isEmpty()) {
+        return text.toHtmlEscaped();
+    }
+
+    // Sort and merge overlapping matches
+    std::sort(matches.begin(), matches.end());
+    QList<QPair<int, int>> merged;
+    for (const auto& m : matches) {
+        if (merged.isEmpty() || m.first > merged.last().second) {
+            merged.append(m);
+        } else {
+            merged.last().second = qMax(merged.last().second, m.second);
+        }
+    }
+
+    // Build HTML with yellow highlights
+    QString html;
+    int pos = 0;
+    for (const auto& m : merged) {
+        html += text.mid(pos, m.first - pos).toHtmlEscaped();
+        html += "<span style=\"background-color: #FFEB3B;\">";
+        html += text.mid(m.first, m.second - m.first).toHtmlEscaped();
+        html += "</span>";
+        pos = m.second;
+    }
+    html += text.mid(pos).toHtmlEscaped();
+    return html;
+}
+
+void EntryPreviewWidget::applyLabelHighlight(QLabel* label, const QString& text)
+{
+    if (!m_searchTerms.isEmpty() && !text.isEmpty()) {
+        QString html = highlightMatches(text, m_searchTerms);
+        if (html != text.toHtmlEscaped()) {
+            label->setTextFormat(Qt::RichText);
+            label->setText(html);
+            return;
+        }
+    }
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
+}
+
+void EntryPreviewWidget::clearLabelHighlight(QLabel* label, const QString& text)
+{
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
+}
+
+void EntryPreviewWidget::updateFieldHighlights()
+{
+    if (!m_currentEntry) {
+        return;
+    }
+
+    // Title
+    const QString title = m_currentEntry->resolveMultiplePlaceholders(m_currentEntry->title());
+    QString titleHtml = highlightMatches(hierarchy(m_currentEntry->group(), title), m_searchTerms);
+    m_ui->entryTitleLabel->setSearchHtml(titleHtml != hierarchy(m_currentEntry->group(), title).toHtmlEscaped() ? titleHtml : QString());
+
+    // URL
+    QString displayUrl = m_currentEntry->displayUrl().toHtmlEscaped();
+    QString urlHtml = highlightMatches(displayUrl, m_searchTerms);
+    m_ui->entryUrlLabel->setSearchHtml(urlHtml != displayUrl ? urlHtml : QString());
+
+    // Username (QLineEdit - highlight entire field background)
+    if (!m_searchTerms.isEmpty()) {
+        auto username = m_currentEntry->resolveMultiplePlaceholders(m_currentEntry->username());
+        bool hasMatch = false;
+        for (const auto& regex : m_searchTerms) {
+            if (!regex.pattern().isEmpty() && regex.match(username).hasMatch()) {
+                hasMatch = true;
+                break;
+            }
+        }
+        m_ui->entryUsernameLabel->setStyleSheet(hasMatch ? "QLineEdit { background-color: rgba(255, 235, 59, 128); }" : "");
+    } else {
+        m_ui->entryUsernameLabel->setStyleSheet("");
+    }
 }
 
 void EntryPreviewWidget::setEntry(Entry* selectedEntry)
@@ -239,6 +389,7 @@ void EntryPreviewWidget::updateEntryHeaderLine()
     const QString title = m_currentEntry->resolveMultiplePlaceholders(m_currentEntry->title());
     m_ui->entryTitleLabel->setRawText(hierarchy(m_currentEntry->group(), title));
     m_ui->entryIcon->setPixmap(Icons::entryIconPixmap(m_currentEntry, IconSize::Large));
+    updateFieldHighlights();
 }
 
 void EntryPreviewWidget::updateEntryTotp()
@@ -273,6 +424,7 @@ void EntryPreviewWidget::setUsernameVisible(bool state)
     }
 
     m_ui->toggleUsernameButton->setIcon(icons()->onOffIcon("password-show", state));
+    updateFieldHighlights();
 }
 
 void EntryPreviewWidget::setPasswordVisible(bool state)
@@ -339,6 +491,7 @@ void EntryPreviewWidget::setNotesVisible(QTextEdit* notesWidget, const QString& 
             notesWidget->setPlainText("");
         }
     }
+    updateNotesSearchHighlight();
 }
 
 void EntryPreviewWidget::updateEntryGeneralTab()

@@ -58,6 +58,7 @@
 #include "gui/dbsettings/DatabaseSettingsWidgetEncryption.h"
 #include "gui/entry/EditEntryWidget.h"
 #include "gui/entry/EntryView.h"
+#include "gui/entry/NotesSearchWidget.h"
 #include "gui/group/EditGroupWidget.h"
 #include "gui/group/GroupModel.h"
 #include "gui/group/GroupView.h"
@@ -2481,6 +2482,87 @@ void TestGui::testMenuActionStates()
     QVERIFY(isActionEnabled("actionImport"));
     QVERIFY(isActionEnabled("actionSettings"));
     QVERIFY(isActionEnabled("actionPasswordGenerator"));
+}
+
+void TestGui::testNotesSearchHighlight()
+{
+    // Create an entry with notes
+    auto* toolBar = m_mainWindow->findChild<QToolBar*>("toolBar");
+    QWidget* entryNewWidget = toolBar->widgetForAction(m_mainWindow->findChild<QAction*>("actionEntryNew"));
+    auto* editEntryWidget = m_dbWidget->findChild<EditEntryWidget*>("editEntryWidget");
+    auto* titleEdit = editEntryWidget->findChild<QLineEdit*>("titleEdit");
+    auto* notesEdit = editEntryWidget->findChild<QPlainTextEdit*>("notesEdit");
+    auto* editEntryWidgetButtonBox = editEntryWidget->findChild<QDialogButtonBox*>("buttonBox");
+
+    QTest::mouseClick(entryNewWidget, Qt::LeftButton);
+    QTest::keyClicks(titleEdit, "zomg entry");
+    notesEdit->setPlainText("zomg test note");
+    QTest::mouseClick(editEntryWidgetButtonBox->button(QDialogButtonBox::Ok), Qt::LeftButton);
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
+
+    // Directly search via DatabaseWidget to avoid timing issues with the search widget timer
+    m_dbWidget->search("zomg");
+    QTRY_VERIFY(m_dbWidget->isSearchActive());
+
+    auto* previewWidget = m_dbWidget->findChild<EntryPreviewWidget*>("previewWidget");
+    QTRY_VERIFY(previewWidget->isVisible());
+    auto* previewNotesEdit = previewWidget->findChild<QTextEdit*>("entryNotesTextEdit");
+    QVERIFY(previewNotesEdit);
+
+    // The preview notes should have extra selections (highlights)
+    QTRY_VERIFY(!previewNotesEdit->extraSelections().isEmpty());
+
+    // Clear search and verify highlights are gone
+    m_dbWidget->endSearch();
+    QTRY_VERIFY(!m_dbWidget->isSearchActive());
+    QTRY_VERIFY(previewNotesEdit->extraSelections().isEmpty());
+}
+
+void TestGui::testNotesFindBar()
+{
+    // Create an entry with notes
+    auto* toolBar = m_mainWindow->findChild<QToolBar*>("toolBar");
+    QWidget* entryNewWidget = toolBar->widgetForAction(m_mainWindow->findChild<QAction*>("actionEntryNew"));
+    auto* editEntryWidget = m_dbWidget->findChild<EditEntryWidget*>("editEntryWidget");
+    auto* titleEdit = editEntryWidget->findChild<QLineEdit*>("titleEdit");
+    auto* notesEdit = editEntryWidget->findChild<QPlainTextEdit*>("notesEdit");
+    auto* editEntryWidgetButtonBox = editEntryWidget->findChild<QDialogButtonBox*>("buttonBox");
+
+    QTest::mouseClick(entryNewWidget, Qt::LeftButton);
+    QTest::keyClicks(titleEdit, "find bar test");
+    notesEdit->setPlainText("test note test");
+    QTest::mouseClick(editEntryWidgetButtonBox->button(QDialogButtonBox::Ok), Qt::LeftButton);
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
+
+    // Use actionEntryEdit to edit the first entry
+    auto* entryView = m_dbWidget->findChild<EntryView*>("entryView");
+    clickIndex(entryView->model()->index(0, 0), entryView, Qt::LeftButton);
+    triggerAction("actionEntryEdit");
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::EditEntryMode);
+
+    auto* notesSearchWidget = editEntryWidget->findChild<NotesSearchWidget*>("NotesSearchWidget");
+    QVERIFY(notesSearchWidget);
+    QVERIFY(!notesSearchWidget->isVisible());
+
+    // Show the find bar directly (shortcut testing is flaky in headless test environment)
+    notesSearchWidget->show();
+    notesSearchWidget->setFocus();
+    QTRY_VERIFY(notesSearchWidget->isVisible());
+
+    auto* searchEdit = notesSearchWidget->findChild<QLineEdit*>("searchEdit");
+    QVERIFY(searchEdit);
+    QTest::keyClicks(searchEdit, "test");
+    QTRY_VERIFY(!notesEdit->extraSelections().isEmpty());
+
+    // Press Escape to close
+    QTest::keyClick(searchEdit, Qt::Key_Escape);
+    QTRY_VERIFY(!notesSearchWidget->isVisible());
+    QVERIFY(notesEdit->extraSelections().isEmpty());
+
+    // Cancel edit
+    auto* buttonBox = editEntryWidget->findChild<QDialogButtonBox*>("buttonBox");
+    QTest::mouseClick(buttonBox->button(QDialogButtonBox::Cancel), Qt::LeftButton);
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
 }
 
 void TestGui::addCannedEntries()

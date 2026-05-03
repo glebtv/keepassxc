@@ -1291,17 +1291,19 @@ void DatabaseWidget::switchToEntryEdit(Entry* entry, bool create)
 
     Q_ASSERT(group);
 
-    // Pass note-relevant search terms to the edit widget for highlighting
-    QList<QRegularExpression> noteSearchTerms;
-    if (isSearchActive()) {
+    // Pass search terms to the edit widget for highlighting
+    QList<QRegularExpression> searchTerms;
+    if (isSearchActive() || !m_lastSearchText.isEmpty()) {
+        if (m_entrySearcher->searchTerms().isEmpty() && !m_lastSearchText.isEmpty()) {
+            m_entrySearcher->parseSearchTerms(m_lastSearchText);
+        }
         for (const auto& term : m_entrySearcher->searchTerms()) {
-            if (!term.exclude
-                && (term.field == EntrySearcher::Field::Undefined || term.field == EntrySearcher::Field::Notes)) {
-                noteSearchTerms.append(term.regex);
+            if (!term.exclude) {
+                searchTerms.append(term.regex);
             }
         }
     }
-    m_editEntryWidget->setSearchTerms(noteSearchTerms);
+    m_editEntryWidget->setSearchTerms(searchTerms);
 
     // Setup the entry edit widget and display
     m_editEntryWidget->loadEntry(entry, create, false, group->name(), m_db);
@@ -1944,6 +1946,17 @@ void DatabaseWidget::emitEntryContextMenuRequested(const QPoint& pos)
 
 void DatabaseWidget::onEntryChanged(Entry* entry)
 {
+    // Pass search terms to the preview widget for highlighting
+    QList<QRegularExpression> searchTerms;
+    if (isSearchActive()) {
+        for (const auto& term : m_entrySearcher->searchTerms()) {
+            if (!term.exclude) {
+                searchTerms.append(term.regex);
+            }
+        }
+    }
+    m_previewView->setSearchTerms(searchTerms);
+
     if (entry) {
         m_previewView->setEntry(entry);
     } else {
