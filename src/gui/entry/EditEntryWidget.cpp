@@ -508,6 +508,7 @@ void EditEntryWidget::setupEntryUpdate()
     connect(m_mainUi->expireCheck, SIGNAL(stateChanged(int)), this, SLOT(setModified()));
     connect(m_mainUi->expireDatePicker, SIGNAL(dateTimeChanged(QDateTime)), this, SLOT(setModified()));
     connect(m_mainUi->notesEdit, SIGNAL(textChanged()), this, SLOT(setModified()));
+    connect(m_mainUi->notesEdit, SIGNAL(textChanged()), this, SLOT(updateNotesSearchHighlight()));
 
     // Advanced tab
     connect(m_advancedUi->attributesEdit, SIGNAL(textChanged()), this, SLOT(setModified()));
@@ -917,6 +918,41 @@ void EditEntryWidget::toggleHideNotes(bool visible)
 {
     m_mainUi->notesEdit->setVisible(visible);
     m_mainUi->revealNotesButton->setIcon(icons()->onOffIcon("password-show", visible));
+}
+
+void EditEntryWidget::setSearchTerms(const QList<QRegularExpression>& terms)
+{
+    m_notesSearchTerms = terms;
+    updateNotesSearchHighlight();
+}
+
+void EditEntryWidget::updateNotesSearchHighlight()
+{
+    QList<QTextEdit::ExtraSelection> extraSelections;
+
+    if (!m_notesSearchTerms.isEmpty() && !m_mainUi->notesEdit->toPlainText().isEmpty()) {
+        auto highlightColor = m_mainUi->notesEdit->palette().color(QPalette::Highlight);
+        highlightColor.setAlpha(128);
+
+        for (const auto& regex : m_notesSearchTerms) {
+            if (regex.pattern().isEmpty()) {
+                continue;
+            }
+
+            QTextCursor cursor(m_mainUi->notesEdit->document());
+            while (!cursor.isNull() && !cursor.atEnd()) {
+                cursor = m_mainUi->notesEdit->document()->find(regex, cursor);
+                if (!cursor.isNull()) {
+                    QTextEdit::ExtraSelection selection;
+                    selection.cursor = cursor;
+                    selection.format.setBackground(highlightColor);
+                    extraSelections.append(selection);
+                }
+            }
+        }
+    }
+
+    m_mainUi->notesEdit->setExtraSelections(extraSelections);
 }
 
 Entry* EditEntryWidget::currentEntry() const
@@ -1386,7 +1422,9 @@ void EditEntryWidget::clear()
     m_mainUi->titleEdit->setText("");
     m_mainUi->passwordEdit->setText("");
     m_mainUi->urlEdit->setText("");
+    m_notesSearchTerms.clear();
     m_mainUi->notesEdit->clear();
+    m_mainUi->notesEdit->setExtraSelections({});
 
     m_entryAttributes->clear();
 #ifdef KPXC_FEATURE_SSHAGENT

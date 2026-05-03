@@ -1291,6 +1291,18 @@ void DatabaseWidget::switchToEntryEdit(Entry* entry, bool create)
 
     Q_ASSERT(group);
 
+    // Pass note-relevant search terms to the edit widget for highlighting
+    QList<QRegularExpression> noteSearchTerms;
+    if (isSearchActive()) {
+        for (const auto& term : m_entrySearcher->searchTerms()) {
+            if (!term.exclude
+                && (term.field == EntrySearcher::Field::Undefined || term.field == EntrySearcher::Field::Notes)) {
+                noteSearchTerms.append(term.regex);
+            }
+        }
+    }
+    m_editEntryWidget->setSearchTerms(noteSearchTerms);
+
     // Setup the entry edit widget and display
     m_editEntryWidget->loadEntry(entry, create, false, group->name(), m_db);
     setCurrentWidget(m_editEntryWidget);

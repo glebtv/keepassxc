@@ -66,6 +66,7 @@ public:
 
     void setCaseSensitive(bool state);
     bool isCaseSensitive() const;
+    QList<SearchTerm> searchTerms() const;
 
 private:
     bool searchEntryImpl(const Entry* entry);
