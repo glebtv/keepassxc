@@ -150,6 +150,7 @@ set(gui_SOURCES
         gui/csvImport/CsvParserModel.cpp
         gui/entry/AutoTypeAssociationsModel.cpp
         gui/entry/EditEntryWidget.cpp
+        gui/entry/EntrySearchHighlightDelegate.cpp
         gui/entry/NotesSearchWidget.cpp
         gui/entry/EntryAttachmentsModel.cpp
         gui/entry/EntryAttachmentsWidget.cpp

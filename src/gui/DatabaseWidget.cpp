@@ -1777,6 +1777,16 @@ void DatabaseWidget::search(const QString& searchtext)
     emit searchModeAboutToActivate();
 
     m_entryView->displaySearch(results);
+
+    // Pass search terms to entry view for highlighting
+    QList<QRegularExpression> tableSearchTerms;
+    for (const auto& term : m_entrySearcher->searchTerms()) {
+        if (!term.exclude) {
+            tableSearchTerms.append(term.regex);
+        }
+    }
+    m_entryView->setSearchTerms(tableSearchTerms);
+
     m_lastSearchText = searchtext;
 
     m_searchingLabel->setVisible(true);
@@ -1912,6 +1922,8 @@ QString DatabaseWidget::getCurrentSearch()
 
 void DatabaseWidget::endSearch()
 {
+    m_entryView->setSearchTerms({});
+
     if (isSearchActive()) {
         // Show the normal entry view of the current group
         emit listModeAboutToActivate();
@@ -1946,7 +1958,7 @@ void DatabaseWidget::emitEntryContextMenuRequested(const QPoint& pos)
 
 void DatabaseWidget::onEntryChanged(Entry* entry)
 {
-    // Pass search terms to the preview widget for highlighting
+    // Pass search terms to the preview widget and entry view for highlighting
     QList<QRegularExpression> searchTerms;
     if (isSearchActive()) {
         for (const auto& term : m_entrySearcher->searchTerms()) {
@@ -1956,6 +1968,7 @@ void DatabaseWidget::onEntryChanged(Entry* entry)
         }
     }
     m_previewView->setSearchTerms(searchTerms);
+    m_entryView->setSearchTerms(searchTerms);
 
     if (entry) {
         m_previewView->setEntry(entry);

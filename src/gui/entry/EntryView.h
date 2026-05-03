@@ -19,12 +19,14 @@
 #ifndef KEEPASSX_ENTRYVIEW_H
 #define KEEPASSX_ENTRYVIEW_H
 
+#include <QRegularExpression>
 #include <QTreeView>
 
 #include "gui/entry/EntryModel.h"
 
 class Entry;
 class EntryModel;
+class EntrySearchHighlightDelegate;
 class Group;
 class SortFilterHideProxyModel;
 class QActionGroup;
@@ -51,6 +53,7 @@ public:
 
     void displayGroup(Group* group);
     void displaySearch(const QList<Entry*>& entries);
+    void setSearchTerms(const QList<QRegularExpression>& terms);
 
 signals:
     void entryActivated(Entry* entry, EntryModel::ModelColumn column);
@@ -81,6 +84,7 @@ private:
 
     EntryModel* const m_model;
     SortFilterHideProxyModel* const m_sortModel;
+    EntrySearchHighlightDelegate* m_highlightDelegate;
     int m_lastIndex;
     Qt::SortOrder m_lastOrder;
     bool m_inSearchMode = false;

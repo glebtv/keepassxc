@@ -246,10 +246,8 @@ void EditEntryWidget::setupMain()
     auto* findShortcut = new QShortcut(QKeySequence::Find, this);
     findShortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(findShortcut, &QShortcut::activated, this, [this]() {
-        if (m_mainUi->notesEdit->hasFocus()) {
-            m_notesSearchWidget->show();
-            m_notesSearchWidget->setFocus();
-        }
+        m_notesSearchWidget->show();
+        m_notesSearchWidget->setFocus();
     });
 }
 

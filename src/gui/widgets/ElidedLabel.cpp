@@ -98,17 +98,20 @@ void ElidedLabel::clear()
     setElideMode(Qt::ElideMiddle);
     setUrl(QString());
     m_searchHtml.clear();
+    setTextFormat(Qt::PlainText);
     QLabel::clear();
 }
 
 void ElidedLabel::updateElidedText()
 {
     if (!m_searchHtml.isEmpty()) {
+        setTextFormat(Qt::RichText);
         setText(m_searchHtml);
         return;
     }
 
     if (m_rawText.isEmpty()) {
+        setTextFormat(Qt::PlainText);
         QLabel::clear();
         return;
     }
@@ -120,6 +123,7 @@ void ElidedLabel::updateElidedText()
     }
 
     bool hasUrl = !m_url.isEmpty();
+    setTextFormat(Qt::PlainText);
     setText(hasUrl ? htmlLinkTemplate.arg(m_url.toHtmlEscaped(), displayText) : displayText);
     setOpenExternalLinks(!hasUrl);
 }

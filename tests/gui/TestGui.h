@@ -72,6 +72,7 @@ private slots:
     void testShortcutConfig();
     void testMenuActionStates();
     void testNotesSearchHighlight();
+    void testEntryListSearchHighlight();
     void testNotesFindBar();
 
 private:

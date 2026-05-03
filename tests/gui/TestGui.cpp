@@ -57,6 +57,7 @@
 #include "gui/dbsettings/DatabaseSettingsDialog.h"
 #include "gui/dbsettings/DatabaseSettingsWidgetEncryption.h"
 #include "gui/entry/EditEntryWidget.h"
+#include "gui/entry/EntrySearchHighlightDelegate.h"
 #include "gui/entry/EntryView.h"
 #include "gui/entry/NotesSearchWidget.h"
 #include "gui/group/EditGroupWidget.h"
@@ -2518,6 +2519,36 @@ void TestGui::testNotesSearchHighlight()
     QTRY_VERIFY(previewNotesEdit->extraSelections().isEmpty());
 }
 
+void TestGui::testEntryListSearchHighlight()
+{
+    // Create an entry with a searchable title
+    auto* toolBar = m_mainWindow->findChild<QToolBar*>("toolBar");
+    QWidget* entryNewWidget = toolBar->widgetForAction(m_mainWindow->findChild<QAction*>("actionEntryNew"));
+    auto* editEntryWidget = m_dbWidget->findChild<EditEntryWidget*>("editEntryWidget");
+    auto* titleEdit = editEntryWidget->findChild<QLineEdit*>("titleEdit");
+    auto* editEntryWidgetButtonBox = editEntryWidget->findChild<QDialogButtonBox*>("buttonBox");
+
+    QTest::mouseClick(entryNewWidget, Qt::LeftButton);
+    QTest::keyClicks(titleEdit, "highlight table test");
+    QTest::mouseClick(editEntryWidgetButtonBox->button(QDialogButtonBox::Ok), Qt::LeftButton);
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
+
+    // Search for the entry
+    m_dbWidget->search("table");
+    QTRY_VERIFY(m_dbWidget->isSearchActive());
+
+    // Verify the entry view highlight delegate has search terms
+    auto* entryView = m_dbWidget->findChild<EntryView*>("entryView");
+    auto* delegate = entryView->findChild<EntrySearchHighlightDelegate*>();
+    QVERIFY(delegate);
+    QTRY_VERIFY(!delegate->searchTerms().isEmpty());
+
+    // End search and verify terms are cleared
+    m_dbWidget->endSearch();
+    QTRY_VERIFY(!m_dbWidget->isSearchActive());
+    QTRY_VERIFY(delegate->searchTerms().isEmpty());
+}
+
 void TestGui::testNotesFindBar()
 {
     // Create an entry with notes
@@ -2534,9 +2565,18 @@ void TestGui::testNotesFindBar()
     QTest::mouseClick(editEntryWidgetButtonBox->button(QDialogButtonBox::Ok), Qt::LeftButton);
     QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
 
-    // Use actionEntryEdit to edit the first entry
+    // Find and edit the newly created entry
     auto* entryView = m_dbWidget->findChild<EntryView*>("entryView");
-    clickIndex(entryView->model()->index(0, 0), entryView, Qt::LeftButton);
+    auto* model = entryView->model();
+    int targetRow = -1;
+    for (int i = 0; i < model->rowCount(); ++i) {
+        if (model->index(i, EntryModel::Title).data(Qt::DisplayRole).toString() == "find bar test") {
+            targetRow = i;
+            break;
+        }
+    }
+    QVERIFY2(targetRow >= 0, "Could not find 'find bar test' entry in entry view");
+    clickIndex(model->index(targetRow, EntryModel::Title), entryView, Qt::LeftButton);
     triggerAction("actionEntryEdit");
     QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::EditEntryMode);
 
