@@ -145,6 +145,7 @@ void EntryPreviewWidget::updateNotesSearchHighlight()
 {
     auto highlight = [&](QTextEdit* textEdit) {
         QList<QTextEdit::ExtraSelection> extraSelections;
+        QTextCursor firstMatch;
 
         if (m_searchTerms.isEmpty() || textEdit->toPlainText().isEmpty()) {
             textEdit->setExtraSelections(extraSelections);
@@ -167,11 +168,21 @@ void EntryPreviewWidget::updateNotesSearchHighlight()
                     selection.cursor = cursor;
                     selection.format.setBackground(highlightColor);
                     extraSelections.append(selection);
+
+                    if (firstMatch.isNull()) {
+                        firstMatch = cursor;
+                    }
                 }
             }
         }
 
         textEdit->setExtraSelections(extraSelections);
+
+        // Scroll to the first match so the user can see the highlighted term
+        if (!firstMatch.isNull()) {
+            textEdit->setTextCursor(firstMatch);
+            textEdit->ensureCursorVisible();
+        }
     };
 
     highlight(m_ui->entryNotesTextEdit);

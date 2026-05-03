@@ -1303,10 +1303,9 @@ void DatabaseWidget::switchToEntryEdit(Entry* entry, bool create)
             }
         }
     }
-    m_editEntryWidget->setSearchTerms(searchTerms);
-
     // Setup the entry edit widget and display
     m_editEntryWidget->loadEntry(entry, create, false, group->name(), m_db);
+    m_editEntryWidget->setSearchTerms(searchTerms);
     setCurrentWidget(m_editEntryWidget);
 }
 

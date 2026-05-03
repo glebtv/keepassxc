@@ -951,6 +951,22 @@ void EditEntryWidget::setSearchTerms(const QList<QRegularExpression>& terms)
     m_notesSearchTerms = terms;
     updateNotesSearchHighlight();
     updateFieldHighlights();
+
+    // Scroll notes to the first match when opening from search results
+    if (!m_notesSearchTerms.isEmpty() && !m_mainUi->notesEdit->toPlainText().isEmpty()) {
+        for (const auto& regex : m_notesSearchTerms) {
+            if (regex.pattern().isEmpty()) {
+                continue;
+            }
+            QTextCursor cursor(m_mainUi->notesEdit->document());
+            cursor = m_mainUi->notesEdit->document()->find(regex, cursor);
+            if (!cursor.isNull()) {
+                m_mainUi->notesEdit->setTextCursor(cursor);
+                m_mainUi->notesEdit->ensureCursorVisible();
+                break;
+            }
+        }
+    }
 }
 
 void EditEntryWidget::updateNotesSearchHighlight()
