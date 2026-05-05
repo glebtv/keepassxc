@@ -141,6 +141,11 @@ bool EntrySearcher::isCaseSensitive() const
     return m_caseSensitive;
 }
 
+QList<EntrySearcher::SearchTerm> EntrySearcher::searchTerms() const
+{
+    return m_searchTerms;
+}
+
 bool EntrySearcher::searchEntryImpl(const Entry* entry)
 {
     // Pre-load in case they are needed

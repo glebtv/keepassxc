@@ -32,6 +32,7 @@
 
 #include "gui/Icons.h"
 #include "gui/SortFilterHideProxyModel.h"
+#include "gui/entry/EntrySearchHighlightDelegate.h"
 
 #define ICON_ONLY_SECTION_SIZE 26
 
@@ -78,6 +79,12 @@ EntryView::EntryView(QWidget* parent)
     m_sortModel->setSortRole(Qt::UserRole);
     QTreeView::setModel(m_sortModel);
     QTreeView::setItemDelegateForColumn(EntryModel::PasswordStrength, new PasswordStrengthItemDelegate(this));
+
+    m_highlightDelegate = new EntrySearchHighlightDelegate(this);
+    QTreeView::setItemDelegateForColumn(EntryModel::Title, m_highlightDelegate);
+    QTreeView::setItemDelegateForColumn(EntryModel::Username, m_highlightDelegate);
+    QTreeView::setItemDelegateForColumn(EntryModel::Url, m_highlightDelegate);
+    QTreeView::setItemDelegateForColumn(EntryModel::Notes, m_highlightDelegate);
 
     setUniformRowHeights(true);
     setRootIsDecorated(false);
@@ -217,6 +224,14 @@ void EntryView::displayGroup(Group* group)
     header()->hideSection(EntryModel::ParentGroup);
     setFirstEntryActive();
     m_inSearchMode = false;
+}
+
+void EntryView::setSearchTerms(const QList<QRegularExpression>& terms)
+{
+    if (m_highlightDelegate) {
+        m_highlightDelegate->setSearchTerms(terms);
+        viewport()->update();
+    }
 }
 
 void EntryView::displaySearch(const QList<Entry*>& entries)

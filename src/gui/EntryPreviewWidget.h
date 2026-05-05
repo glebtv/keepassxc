@@ -21,6 +21,8 @@
 #include "config-keepassx.h"
 #include "gui/DatabaseWidget.h"
 
+#include <QRegularExpression>
+
 namespace Ui
 {
     class EntryPreviewWidget;
@@ -43,6 +45,7 @@ public slots:
     void setDatabaseMode(DatabaseWidget::Mode mode);
     void refresh();
     void clear();
+    void setSearchTerms(const QList<QRegularExpression>& terms);
 
 signals:
     void entryUrlActivated(Entry* entry);
@@ -67,12 +70,17 @@ private slots:
     void updateGroupGeneralTab();
     void updateGroupSharingTab();
 
+    void updateNotesSearchHighlight();
+    void updateFieldHighlights();
     void updateTotpLabel();
     void updateTabIndexes();
     void openEntryUrl();
 
 private:
     void setTabEnabled(QTabWidget* tabWidget, QWidget* widget, bool enabled);
+    static QString highlightMatches(const QString& text, const QList<QRegularExpression>& terms);
+    void applyLabelHighlight(QLabel* label, const QString& text);
+    void clearLabelHighlight(QLabel* label, const QString& text);
 
     static QString hierarchy(const Group* group, const QString& title);
 
@@ -80,6 +88,7 @@ private:
     bool m_locked;
     QPointer<Entry> m_currentEntry;
     QPointer<Group> m_currentGroup;
+    QList<QRegularExpression> m_searchTerms;
     QTimer m_totpTimer;
     quint8 m_selectedTabEntry;
     quint8 m_selectedTabGroup;

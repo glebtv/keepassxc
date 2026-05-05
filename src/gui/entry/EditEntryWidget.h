@@ -22,7 +22,9 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QCompleter>
+#include <QList>
 #include <QPointer>
+#include <QRegularExpression>
 #include <QTimer>
 
 #include "config-keepassx.h"
@@ -39,6 +41,7 @@ class EntryAttributes;
 class EntryAttachments;
 class EntryAttributesModel;
 class EntryHistoryModel;
+class NotesSearchWidget;
 class QButtonGroup;
 class QMenu;
 class QScrollArea;
@@ -76,6 +79,7 @@ public:
 
     Entry* currentEntry() const;
     void clear();
+    void setSearchTerms(const QList<QRegularExpression>& terms);
 
     enum class Page
     {
@@ -124,6 +128,11 @@ private slots:
     void useExpiryPreset(QAction* action);
     void toggleHideNotes(bool visible);
     void pickColor();
+    void updateNotesSearchHighlight();
+    void updateFieldHighlights();
+    void findNotesNext();
+    void findNotesPrevious();
+    void updateNotesFindHighlight();
 #ifdef KPXC_FEATURE_SSHAGENT
     void toKeeAgentSettings(KeeAgentSettings& settings) const;
     void setSSHAgentSettings();
@@ -222,6 +231,8 @@ private:
     QCompleter* const m_usernameCompleter;
     QStringListModel* const m_usernameCompleterModel;
     QTimer m_entryModifiedTimer;
+    QList<QRegularExpression> m_notesSearchTerms;
+    NotesSearchWidget* m_notesSearchWidget;
 
     Q_DISABLE_COPY(EditEntryWidget)
 };

@@ -24,8 +24,11 @@
 #include "ui_EditEntryWidgetMain.h"
 #include "ui_EditEntryWidgetSSHAgent.h"
 
+#include "NotesSearchWidget.h"
+
 #include <QColorDialog>
 #include <QDesktopServices>
+#include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
 
@@ -97,6 +100,7 @@ EditEntryWidget::EditEntryWidget(QWidget* parent)
     , m_autoTypeWindowSequenceGroup(new QButtonGroup(this))
     , m_usernameCompleter(new QCompleter(this))
     , m_usernameCompleterModel(new QStringListModel(this))
+    , m_notesSearchWidget(nullptr)
 {
     setupMain();
     setupAdvanced();
@@ -223,6 +227,28 @@ void EditEntryWidget::setupMain()
 
     m_mainUi->expirePresets->setMenu(createPresetsMenu());
     connect(m_mainUi->expirePresets->menu(), SIGNAL(triggered(QAction*)), this, SLOT(useExpiryPreset(QAction*)));
+
+    // Notes find bar
+    m_notesSearchWidget = new NotesSearchWidget(m_mainWidget);
+    m_mainUi->verticalLayout_2->insertWidget(0, m_notesSearchWidget);
+    m_notesSearchWidget->hide();
+
+    connect(m_notesSearchWidget, &NotesSearchWidget::searchTextChanged, this, &EditEntryWidget::updateNotesFindHighlight);
+    connect(m_notesSearchWidget, &NotesSearchWidget::findNext, this, &EditEntryWidget::findNotesNext);
+    connect(m_notesSearchWidget, &NotesSearchWidget::findPrevious, this, &EditEntryWidget::findNotesPrevious);
+    connect(m_notesSearchWidget, &NotesSearchWidget::caseSensitiveChanged, this, &EditEntryWidget::updateNotesFindHighlight);
+    connect(m_notesSearchWidget, &NotesSearchWidget::closeRequested, this, [this]() {
+        m_notesSearchWidget->hide();
+        m_mainUi->notesEdit->setFocus();
+        m_mainUi->notesEdit->setExtraSelections({});
+    });
+
+    auto* findShortcut = new QShortcut(QKeySequence::Find, this);
+    findShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(findShortcut, &QShortcut::activated, this, [this]() {
+        m_notesSearchWidget->show();
+        m_notesSearchWidget->setFocus();
+    });
 }
 
 void EditEntryWidget::setupAdvanced()
@@ -508,6 +534,7 @@ void EditEntryWidget::setupEntryUpdate()
     connect(m_mainUi->expireCheck, SIGNAL(stateChanged(int)), this, SLOT(setModified()));
     connect(m_mainUi->expireDatePicker, SIGNAL(dateTimeChanged(QDateTime)), this, SLOT(setModified()));
     connect(m_mainUi->notesEdit, SIGNAL(textChanged()), this, SLOT(setModified()));
+    connect(m_mainUi->notesEdit, SIGNAL(textChanged()), this, SLOT(updateNotesSearchHighlight()));
 
     // Advanced tab
     connect(m_advancedUi->attributesEdit, SIGNAL(textChanged()), this, SLOT(setModified()));
@@ -919,6 +946,144 @@ void EditEntryWidget::toggleHideNotes(bool visible)
     m_mainUi->revealNotesButton->setIcon(icons()->onOffIcon("password-show", visible));
 }
 
+void EditEntryWidget::setSearchTerms(const QList<QRegularExpression>& terms)
+{
+    m_notesSearchTerms = terms;
+    updateNotesSearchHighlight();
+    updateFieldHighlights();
+
+    // Scroll notes to the first match when opening from search results
+    if (!m_notesSearchTerms.isEmpty() && !m_mainUi->notesEdit->toPlainText().isEmpty()) {
+        for (const auto& regex : m_notesSearchTerms) {
+            if (regex.pattern().isEmpty()) {
+                continue;
+            }
+            QTextCursor cursor(m_mainUi->notesEdit->document());
+            cursor = m_mainUi->notesEdit->document()->find(regex, cursor);
+            if (!cursor.isNull()) {
+                m_mainUi->notesEdit->setTextCursor(cursor);
+                m_mainUi->notesEdit->ensureCursorVisible();
+                break;
+            }
+        }
+    }
+}
+
+void EditEntryWidget::updateNotesSearchHighlight()
+{
+    QList<QTextEdit::ExtraSelection> extraSelections;
+
+    if (!m_notesSearchTerms.isEmpty() && !m_mainUi->notesEdit->toPlainText().isEmpty()) {
+        auto highlightColor = QColor(255, 235, 59);
+        highlightColor.setAlpha(128);
+
+        for (const auto& regex : m_notesSearchTerms) {
+            if (regex.pattern().isEmpty()) {
+                continue;
+            }
+
+            QTextCursor cursor(m_mainUi->notesEdit->document());
+            while (!cursor.isNull() && !cursor.atEnd()) {
+                cursor = m_mainUi->notesEdit->document()->find(regex, cursor);
+                if (!cursor.isNull()) {
+                    QTextEdit::ExtraSelection selection;
+                    selection.cursor = cursor;
+                    selection.format.setBackground(highlightColor);
+                    extraSelections.append(selection);
+                }
+            }
+        }
+    }
+
+    m_mainUi->notesEdit->setExtraSelections(extraSelections);
+}
+
+void EditEntryWidget::findNotesNext()
+{
+    auto flags = m_notesSearchWidget->caseSensitive() ? QTextDocument::FindCaseSensitively : QTextDocument::FindFlags();
+    if (!m_mainUi->notesEdit->find(m_notesSearchWidget->searchText(), flags)) {
+        // Wrap around to start
+        QTextCursor cursor(m_mainUi->notesEdit->document());
+        cursor.movePosition(QTextCursor::Start);
+        m_mainUi->notesEdit->setTextCursor(cursor);
+        m_mainUi->notesEdit->find(m_notesSearchWidget->searchText(), flags);
+    }
+    updateNotesFindHighlight();
+}
+
+void EditEntryWidget::findNotesPrevious()
+{
+    QTextDocument::FindFlags flags = QTextDocument::FindBackward;
+    if (m_notesSearchWidget->caseSensitive()) {
+        flags |= QTextDocument::FindCaseSensitively;
+    }
+    if (!m_mainUi->notesEdit->find(m_notesSearchWidget->searchText(), flags)) {
+        // Wrap around to end
+        QTextCursor cursor(m_mainUi->notesEdit->document());
+        cursor.movePosition(QTextCursor::End);
+        m_mainUi->notesEdit->setTextCursor(cursor);
+        m_mainUi->notesEdit->find(m_notesSearchWidget->searchText(), flags);
+    }
+    updateNotesFindHighlight();
+}
+
+void EditEntryWidget::updateNotesFindHighlight()
+{
+    QList<QTextEdit::ExtraSelection> extraSelections;
+
+    QString text = m_notesSearchWidget->searchText();
+    if (!text.isEmpty() && m_notesSearchWidget->isVisible()) {
+        auto highlightColor = QColor(255, 235, 59);
+        highlightColor.setAlpha(128);
+
+        auto currentCursor = m_mainUi->notesEdit->textCursor();
+
+        QTextDocument::FindFlags flags;
+        if (m_notesSearchWidget->caseSensitive()) {
+            flags |= QTextDocument::FindCaseSensitively;
+        }
+
+        QTextCursor cursor(m_mainUi->notesEdit->document());
+        while (!cursor.isNull() && !cursor.atEnd()) {
+            cursor = m_mainUi->notesEdit->document()->find(text, cursor, flags);
+            if (!cursor.isNull()) {
+                // Skip the currently selected match to avoid duplicate highlight
+                if (cursor.anchor() == currentCursor.anchor() && cursor.position() == currentCursor.position()) {
+                    continue;
+                }
+                QTextEdit::ExtraSelection selection;
+                selection.cursor = cursor;
+                selection.format.setBackground(highlightColor);
+                extraSelections.append(selection);
+            }
+        }
+    }
+
+    m_mainUi->notesEdit->setExtraSelections(extraSelections);
+}
+
+void EditEntryWidget::updateFieldHighlights()
+{
+    auto hasMatch = [&](const QString& text) {
+        if (text.isEmpty() || m_notesSearchTerms.isEmpty()) {
+            return false;
+        }
+        for (const auto& regex : m_notesSearchTerms) {
+            if (!regex.pattern().isEmpty() && regex.match(text).hasMatch()) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const QString highlightStyle = "QLineEdit { background-color: rgba(255, 235, 59, 128); }";
+
+    m_mainUi->titleEdit->setStyleSheet(hasMatch(m_mainUi->titleEdit->text()) ? highlightStyle : "");
+    m_mainUi->usernameComboBox->lineEdit()->setStyleSheet(
+        hasMatch(m_mainUi->usernameComboBox->lineEdit()->text()) ? highlightStyle : "");
+    m_mainUi->urlEdit->setStyleSheet(hasMatch(m_mainUi->urlEdit->text()) ? highlightStyle : "");
+}
+
 Entry* EditEntryWidget::currentEntry() const
 {
     return m_entry;
@@ -1039,7 +1204,14 @@ void EditEntryWidget::setForms(Entry* entry, bool restore)
     m_mainUi->usernameComboBox->addItems(commonUsernames);
     m_mainUi->usernameComboBox->lineEdit()->setText(usernameToRestore);
 
-    m_mainUi->notesEdit->setPlainText(entry->notes());
+    // Block signals while setting notes text to prevent stale search terms
+    // from being applied via textChanged()->updateNotesSearchHighlight().
+    // The correct terms will be applied by setSearchTerms() after loadEntry().
+    {
+        QSignalBlocker blocker(m_mainUi->notesEdit);
+        m_mainUi->notesEdit->setPlainText(entry->notes());
+    }
+    updateFieldHighlights();
 
     m_advancedUi->attachmentsWidget->linkAttachments(m_attachments.data());
     m_entryAttributes->copyCustomKeysFrom(entry->attributes());
@@ -1386,7 +1558,12 @@ void EditEntryWidget::clear()
     m_mainUi->titleEdit->setText("");
     m_mainUi->passwordEdit->setText("");
     m_mainUi->urlEdit->setText("");
+    m_notesSearchTerms.clear();
+    if (m_notesSearchWidget) {
+        m_notesSearchWidget->hide();
+    }
     m_mainUi->notesEdit->clear();
+    m_mainUi->notesEdit->setExtraSelections({});
 
     m_entryAttributes->clear();
 #ifdef KPXC_FEATURE_SSHAGENT

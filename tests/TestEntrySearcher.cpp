@@ -434,3 +434,24 @@ void TestEntrySearcher::testTotpSearch()
     QVERIFY(!m_searchResult.contains(entry2));
     QVERIFY(!m_searchResult.contains(entry3));
 }
+
+void TestEntrySearcher::testSearchTermsAccessor()
+{
+    auto entry = new Entry();
+    entry->setGroup(m_rootGroup);
+    entry->setTitle("Test Entry");
+    entry->setNotes("some notes");
+
+    // Before any search, searchTerms should be empty
+    QVERIFY(m_entrySearcher.searchTerms().isEmpty());
+
+    // After searching, searchTerms should contain the parsed terms
+    m_searchResult = m_entrySearcher.search("test notes", m_rootGroup);
+    QCOMPARE(m_entrySearcher.searchTerms().size(), 2);
+
+    // Test with field-specific search
+    m_searchResult = m_entrySearcher.search("title:test notes:foo", m_rootGroup);
+    QCOMPARE(m_entrySearcher.searchTerms().size(), 2);
+    QCOMPARE(m_entrySearcher.searchTerms()[0].field, EntrySearcher::Field::Title);
+    QCOMPARE(m_entrySearcher.searchTerms()[1].field, EntrySearcher::Field::Notes);
+}
