@@ -2605,6 +2605,94 @@ void TestGui::testNotesFindBar()
     QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
 }
 
+void TestGui::testEditWidgetHighlightStateManagement()
+{
+    // Create an entry with both "test" and "zomg" in different fields
+    auto* toolBar = m_mainWindow->findChild<QToolBar*>("toolBar");
+    QWidget* entryNewWidget = toolBar->widgetForAction(m_mainWindow->findChild<QAction*>("actionEntryNew"));
+    auto* editEntryWidget = m_dbWidget->findChild<EditEntryWidget*>("editEntryWidget");
+    auto* titleEdit = editEntryWidget->findChild<QLineEdit*>("titleEdit");
+    auto* usernameEdit = editEntryWidget->findChild<QComboBox*>("usernameComboBox")->lineEdit();
+    auto* notesEdit = editEntryWidget->findChild<QPlainTextEdit*>("notesEdit");
+    auto* editEntryWidgetButtonBox = editEntryWidget->findChild<QDialogButtonBox*>("buttonBox");
+
+    QTest::mouseClick(entryNewWidget, Qt::LeftButton);
+    QTest::keyClicks(titleEdit, "stale test entry");
+    QTest::keyClicks(usernameEdit, "zomg tomg");
+    notesEdit->setPlainText("test line one\nzomg line two\nanother test\nfinal zomg");
+    QTest::mouseClick(editEntryWidgetButtonBox->button(QDialogButtonBox::Ok), Qt::LeftButton);
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
+
+    auto* entryView = m_dbWidget->findChild<EntryView*>("entryView");
+
+    // --- First search: "test" ---
+    m_dbWidget->search("test");
+    QTRY_VERIFY(m_dbWidget->isSearchActive());
+
+    // Open the entry for editing
+    auto* model = entryView->model();
+    int targetRow = -1;
+    for (int i = 0; i < model->rowCount(); ++i) {
+        if (model->index(i, EntryModel::Title).data(Qt::DisplayRole).toString().contains("stale test")) {
+            targetRow = i;
+            break;
+        }
+    }
+    QVERIFY2(targetRow >= 0, "Could not find entry");
+    clickIndex(model->index(targetRow, EntryModel::Title), entryView, Qt::LeftButton);
+    triggerAction("actionEntryEdit");
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::EditEntryMode);
+
+    // Verify "test" is highlighted in notes (2 matches)
+    QTRY_VERIFY(notesEdit->extraSelections().size() >= 2);
+    // Verify title has highlight stylesheet (contains "test")
+    QVERIFY(!titleEdit->styleSheet().isEmpty());
+    // Username should NOT be highlighted (doesn't contain "test")
+    QVERIFY(usernameEdit->styleSheet().isEmpty());
+
+    // Cancel edit
+    auto* buttonBox = editEntryWidget->findChild<QDialogButtonBox*>("buttonBox");
+    QTest::mouseClick(buttonBox->button(QDialogButtonBox::Cancel), Qt::LeftButton);
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
+
+    // --- Second search: "zomg" ---
+    m_dbWidget->endSearch();
+    QTRY_VERIFY(!m_dbWidget->isSearchActive());
+
+    m_dbWidget->search("zomg");
+    QTRY_VERIFY(m_dbWidget->isSearchActive());
+
+    // Re-select and open the same entry
+    targetRow = -1;
+    for (int i = 0; i < model->rowCount(); ++i) {
+        if (model->index(i, EntryModel::Title).data(Qt::DisplayRole).toString().contains("stale test")) {
+            targetRow = i;
+            break;
+        }
+    }
+    QVERIFY2(targetRow >= 0, "Could not find entry on second search");
+    clickIndex(model->index(targetRow, EntryModel::Title), entryView, Qt::LeftButton);
+    triggerAction("actionEntryEdit");
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::EditEntryMode);
+
+    // Verify "zomg" is highlighted in notes (2 matches)
+    QTRY_VERIFY(notesEdit->extraSelections().size() >= 2);
+    // Verify the FIRST extra selection is for "zomg" (not "test")
+    auto firstSelection = notesEdit->extraSelections().first();
+    QString selectedText = firstSelection.cursor.selectedText();
+    QCOMPARE(selectedText, QString("zomg"));
+
+    // Username should be highlighted (contains "zomg")
+    QVERIFY(!usernameEdit->styleSheet().isEmpty());
+    // Title should NOT be highlighted (doesn't contain "zomg")
+    QVERIFY(titleEdit->styleSheet().isEmpty());
+
+    // Cancel edit
+    QTest::mouseClick(buttonBox->button(QDialogButtonBox::Cancel), Qt::LeftButton);
+    QTRY_COMPARE(m_dbWidget->currentMode(), DatabaseWidget::Mode::ViewMode);
+    m_dbWidget->endSearch();
+}
+
 void TestGui::addCannedEntries()
 {
     // Find buttons

@@ -73,6 +73,7 @@ private slots:
     void testMenuActionStates();
     void testNotesSearchHighlight();
     void testEntryListSearchHighlight();
+    void testEditWidgetHighlightStateManagement();
     void testNotesFindBar();
 
 private:

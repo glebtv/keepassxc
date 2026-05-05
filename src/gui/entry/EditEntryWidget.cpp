@@ -1204,7 +1204,13 @@ void EditEntryWidget::setForms(Entry* entry, bool restore)
     m_mainUi->usernameComboBox->addItems(commonUsernames);
     m_mainUi->usernameComboBox->lineEdit()->setText(usernameToRestore);
 
-    m_mainUi->notesEdit->setPlainText(entry->notes());
+    // Block signals while setting notes text to prevent stale search terms
+    // from being applied via textChanged()->updateNotesSearchHighlight().
+    // The correct terms will be applied by setSearchTerms() after loadEntry().
+    {
+        QSignalBlocker blocker(m_mainUi->notesEdit);
+        m_mainUi->notesEdit->setPlainText(entry->notes());
+    }
     updateFieldHighlights();
 
     m_advancedUi->attachmentsWidget->linkAttachments(m_attachments.data());
